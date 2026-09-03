@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Audio Studio Web - Conversor y Editor de Metadatos</title>
+
+<!-- PWA: manifest e iconos -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#4f8cff">
+
+<!-- PWA: soporte iOS/Safari (no lee manifest.json para instalar, requiere estas etiquetas) -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="AudioStudio">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+
+<!-- PWA: iconos adicionales Android/Chromium -->
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png">
+
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #171a21;
+    --panel2: #1f232c;
+    --accent: #4f8cff;
+    --accent2: #7c5cff;
+    --text: #e8eaf0;
+    --muted: #9aa2b1;
+    --border: #2a2f3a;
+    --success: #35c76a;
+    --danger: #ff5c5c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+  header {
+    padding: 18px 20px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    text-align: center;
+  }
+  header h1 { margin: 0; font-size: 1.4rem; }
+  header p { margin: 4px 0 0; font-size: 0.85rem; opacity: 0.9; }
+  .container {
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 16px;
+  }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px;
+    margin-bottom: 16px;
+  }
+  .card h2 {
+    margin: 0 0 14px;
+    font-size: 1.05rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .badge {
+    background: var(--panel2);
+    border-radius: 20px;
+    font-size: 0.65rem;
+    padding: 2px 10px;
+    color: var(--muted);
+  }
+  .dropzone {
+    border: 2px dashed var(--border);
+    border-radius: 12px;
+    padding: 30px 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  .dropzone.drag { border-color: var(--accent); background: rgba(79,140,255,0.08); }
+  .dropzone p { margin: 6px 0; color: var(--muted); font-size: 0.9rem; }
+  .dropzone .icon { font-size: 2rem; }
+  input[type=file] { display: none; }
+  .file-info {
+    display: none;
+    margin-top: 12px;
+    padding: 10px 12px;
+    background: var(--panel2);
+    border-radius: 10px;
+    font-size: 0.85rem;
+  }
+  .tabs {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    margin-bottom: 14px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .tab-btn {
+    flex: 0 0 auto;
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 9px 14px;
+    border-radius: 20px;
+    font-size: 0.82rem;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .tab-btn.active { background: var(--accent); color: white; border-color: var(--accent); }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+  label.field-label {
+    display: block;
+    font-size: 0.78rem;
+    color: var(--muted);
+    margin: 10px 0 4px;
+  }
+  input[type=text], input[type=number], select {
+    width: 100%;
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 10px 12px;
+    border-radius: 9px;
+    font-size: 0.92rem;
+  }
+  select { appearance: none; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  @media (max-width: 520px) { .grid2 { grid-template-columns: 1fr; } }
+  .cover-preview {
+    width: 100px; height: 100px;
+    border-radius: 10px;
+    background: var(--panel2);
+    background-size: cover;
+    background-position: center;
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted);
+    font-size: 0.7rem;
+    flex-shrink: 0;
+  }
+  .cover-row { display: flex; gap: 14px; align-items: center; }
+  .btn {
+    background: var(--accent);
+    color: white;
+    border: none;
+    padding: 11px 18px;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    font-weight: 600;
+  }
+  .btn.secondary { background: var(--panel2); color: var(--text); border: 1px solid var(--border); }
+  .btn.danger { background: var(--danger); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .chapter-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    padding: 8px 10px;
+    background: var(--panel2);
+    border-radius: 9px;
+    margin-bottom: 6px;
+    font-size: 0.85rem;
+  }
+  .chapter-row .time { color: var(--accent); font-weight: 600; min-width: 68px; }
+  .chapter-row .title { flex: 1; }
+  .chapter-row button {
+    background: none; border: none; color: var(--danger); cursor: pointer; font-size: 1rem;
+  }
+  .chapter-form { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chapter-form input { flex: 1; min-width: 100px; }
+  .progress-wrap {
+    display: none;
+    margin-top: 14px;
+  }
+  .progress-bar-bg {
+    background: var(--panel2);
+    border-radius: 10px;
+    height: 10px;
+    overflow: hidden;
+  }
+  .progress-bar-fill {
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    height: 100%;
+    width: 0%;
+    transition: width 0.2s;
+  }
+  .status-text { font-size: 0.8rem; color: var(--muted); margin-top: 6px; }
+  .process-btn {
+    width: 100%;
+    padding: 14px;
+    font-size: 1rem;
+    margin-top: 4px;
+  }
+  .result-box {
+    display: none;
+    background: rgba(53,199,106,0.1);
+    border: 1px solid var(--success);
+    border-radius: 10px;
+    padding: 14px;
+    margin-top: 14px;
+    text-align: center;
+  }
+  .result-box a {
+    display: inline-block;
+    margin-top: 8px;
+    background: var(--success);
+    color: #06170c;
+    text-decoration: none;
+    padding: 10px 20px;
+    border-radius: 9px;
+    font-weight: 700;
+  }
+  .note {
+    font-size: 0.75rem;
+    color: var(--muted);
+    margin-top: 10px;
+    line-height: 1.4;
+  }
+  footer {
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.72rem;
+    padding: 20px;
+  }
+  .privacy-banner {
+    background: rgba(53,199,106,0.08);
+    border: 1px solid var(--success);
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 0.78rem;
+    color: #9be8b3;
+    margin-bottom: 16px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Audio Studio Web</h1>
+  <p>Conversion, metadatos, portada y capitulos &mdash; 100% en tu dispositivo</p>
+  <button id="installBtn" style="display:none; margin-top:10px; background:white; color:#4f8cff; border:none; padding:9px 18px; border-radius:20px; font-weight:700; font-size:0.85rem; cursor:pointer;">
+    ⬇️ Instalar aplicacion
+  </button>
+  <p id="iosInstallHint" style="display:none; margin-top:10px; font-size:0.78rem; opacity:0.95;">
+    📲 En iPhone/iPad: toca el boton <strong>Compartir</strong> de Safari y luego <strong>"Añadir a pantalla de inicio"</strong>
+  </p>
+</header>
+
+<div class="container">
+
+  <div class="privacy-banner">
+    🔒 Tu archivo nunca sale de este dispositivo. Todo el procesamiento ocurre localmente en el navegador (WebAssembly).
+  </div>
+
+  <div class="card">
+    <h2>1. Archivo de audio <span class="badge" id="engineBadge">motor no cargado</span></h2>
+    <div class="dropzone" id="dropzone">
+      <div class="icon">🎵</div>
+      <p><strong>Toca para elegir</strong> o arrastra un archivo aqui</p>
+      <p>MP3, WAV, FLAC, M4A, OGG, OPUS, WMA...</p>
+      <input type="file" id="fileInput" accept="audio/*">
+    </div>
+    <div class="file-info" id="fileInfo"></div>
+  </div>
+
+  <div class="card" id="mainCard" style="display:none;">
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="convert">Conversion</button>
+      <button class="tab-btn" data-tab="metadata">Metadatos</button>
+      <button class="tab-btn" data-tab="cover">Portada</button>
+      <button class="tab-btn" data-tab="chapters">Capitulos</button>
+    </div>
+
+    <div class="tab-content active" id="tab-convert">
+      <label class="field-label">Formato de salida</label>
+      <select id="formatSelect">
+        <option value="mp3">MP3 (.mp3)</option>
+        <option value="wav">WAV (.wav)</option>
+        <option value="flac">FLAC (.flac)</option>
+        <option value="m4a">M4A / AAC (.m4a)</option>
+        <option value="ogg">OGG Vorbis (.ogg)</option>
+      </select>
+      <div class="grid2">
+        <div>
+          <label class="field-label">Bitrate (calidad)</label>
+          <select id="bitrateSelect">
+            <option>96k</option><option>128k</option>
+            <option selected>192k</option><option>256k</option><option>320k</option>
+          </select>
+        </div>
+        <div>
+          <label class="field-label">Frecuencia de muestreo</label>
+          <select id="sampleRateSelect">
+            <option value="">Original</option>
+            <option value="44100">44100 Hz</option>
+            <option value="48000">48000 Hz</option>
+            <option value="22050">22050 Hz</option>
+          </select>
+        </div>
+      </div>
+      <label class="field-label">Canales</label>
+      <select id="channelsSelect">
+        <option value="">Original</option>
+        <option value="1">Mono</option>
+        <option value="2">Estereo</option>
+      </select>
+      <p class="note">La conversion corre con FFmpeg compilado a WebAssembly directamente en tu navegador. Archivos grandes (&gt;100 MB) pueden ir lentos o fallar en moviles por limites de memoria del navegador.</p>
+    </div>
+
+    <div class="tab-content" id="tab-metadata">
+      <div class="grid2">
+        <div><label class="field-label">Titulo</label><input type="text" id="m_title"></div>
+        <div><label class="field-label">Artista</label><input type="text" id="m_artist"></div>
+        <div><label class="field-label">Album</label><input type="text" id="m_album"></div>
+        <div><label class="field-label">Artista del album</label><input type="text" id="m_albumartist"></div>
+        <div><label class="field-label">Genero</label><input type="text" id="m_genre"></div>
+        <div><label class="field-label">Año</label><input type="text" id="m_year"></div>
+        <div><label class="field-label">Numero de pista</label><input type="text" id="m_track"></div>
+        <div><label class="field-label">Numero de disco</label><input type="text" id="m_disc"></div>
+        <div><label class="field-label">Compositor</label><input type="text" id="m_composer"></div>
+        <div><label class="field-label">BPM</label><input type="text" id="m_bpm"></div>
+      </div>
+      <label class="field-label">Comentario</label>
+      <input type="text" id="m_comment">
+      <p class="note">Los campos se leen automaticamente del archivo original al cargarlo. Editalos libremente antes de procesar.</p>
+    </div>
+
+    <div class="tab-content" id="tab-cover">
+      <div class="cover-row">
+        <div class="cover-preview" id="coverPreview">Sin<br>portada</div>
+        <div style="flex:1">
+          <input type="file" id="coverInput" accept="image/jpeg,image/png" style="display:block; width:100%; background:var(--panel2); border:1px solid var(--border); border-radius:9px; padding:8px; color: var(--text);">
+          <div class="btn-row">
+            <button class="btn secondary" id="removeCoverBtn" type="button">Quitar portada</button>
+          </div>
+        </div>
+      </div>
+      <p class="note">Compatible con MP3 (APIC), M4A (covr) y FLAC (METADATA_BLOCK_PICTURE). Usa JPG o PNG.</p>
+    </div>
+
+    <div class="tab-content" id="tab-chapters">
+      <div class="chapter-form">
+        <input type="text" id="chapTime" placeholder="00:00:00" style="max-width:110px;">
+        <input type="text" id="chapTitle" placeholder="Titulo del capitulo">
+        <button class="btn secondary" id="addChapterBtn" type="button">Añadir</button>
+      </div>
+      <div id="chaptersList" style="margin-top:12px;"></div>
+      <p class="note">Compatible con MP3 (frames ID3v2 CHAP/CTOC) y M4A (tabla de capitulos QuickTime). No disponible aun para WAV/OGG/FLAC.</p>
+    </div>
+
+    <button class="btn process-btn" id="processBtn">Procesar archivo</button>
+
+    <div class="progress-wrap" id="progressWrap">
+      <div class="progress-bar-bg"><div class="progress-bar-fill" id="progressFill"></div></div>
+      <div class="status-text" id="statusText">Preparando...</div>
+    </div>
+
+    <div class="result-box" id="resultBox">
+      <div id="resultText">Archivo listo</div>
+      <a id="downloadLink" download>Descargar archivo</a>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  Audio Studio Web funciona sin servidor: la conversion, edicion de metadatos y capitulos ocurren enteramente en tu navegador via WebAssembly. Compatible con Windows, macOS, Linux, Android e iOS. Instalable como app.
+</footer>
+
+<script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js"></script>
+<script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>
+
+<script>
+/* ============================================================
+   Audio Studio Web
+   Conversion (ffmpeg.wasm) + Metadatos (parser/writer propios) +
+   Portada + Capitulos, 100% client-side. + Registro PWA.
+   ============================================================ */
+
+const { FFmpeg } = FFmpegWASM;
+const { fetchFile, toBlobURL } = FFmpegUtil;
+
+let ffmpeg = null;
+let ffmpegLoaded = false;
+let currentFile = null;
+let currentFileBuffer = null;
+let coverFile = null;
+let removeCoverFlag = false;
+let chapters = [];
+let duration = 0;
+
+const el = (id) => document.getElementById(id);
+
+/* ---------------- PWA: registro del service worker ---------------- */
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('service-worker.js').catch(err => {
+      console.warn('No se pudo registrar el service worker:', err);
+    });
+  });
+}
+
+/* ---------------- PWA: prompt de instalacion (Android/Chromium) ---------------- */
+
+let deferredInstallPrompt = null;
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  el('installBtn').style.display = 'inline-block';
+});
+
+el('installBtn').addEventListener('click', async () => {
+  if (!deferredInstallPrompt) return;
+  deferredInstallPrompt.prompt();
+  const { outcome } = await deferredInstallPrompt.userChoice;
+  deferredInstallPrompt = null;
+  el('installBtn').style.display = 'none';
+});
+
+window.addEventListener('appinstalled', () => {
+  el('installBtn').style.display = 'none';
+});
+
+/* ---------------- PWA: instrucciones manuales para iOS/Safari ---------------- */
+
+(function showIOSHintIfNeeded() {
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const isStandalone = window.navigator.standalone === true ||
+                        window.matchMedia('(display-mode: standalone)').matches;
+  if (isIOS && !isStandalone) {
+    el('iosInstallHint').style.display = 'block';
+  }
+})();
+
+/* ---------------- FFmpeg loading ---------------- */
+
+async function loadFFmpeg() {
+  if (ffmpegLoaded) return;
+  el('engineBadge').textContent = 'cargando motor...';
+  ffmpeg = new FFmpeg();
+  const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+  await ffmpeg.load({
+    coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
+    wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+  });
+  ffmpegLoaded = true;
+  el('engineBadge').textContent = 'motor listo';
+}
+
+/* ---------------- Drag & drop / file selection ---------------- */
+
+const dropzone = el('dropzone');
+const fileInput = el('fileInput');
+
+dropzone.addEventListener('click', () => fileInput.click());
+dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('drag'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+dropzone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dropzone.classList.remove('drag');
+  if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', (e) => {
+  if (e.target.files.length) handleFile(e.target.files[0]);
+});
+
+async function handleFile(file) {
+  currentFile = file;
+  currentFileBuffer = await file.arrayBuffer();
+  const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
+  el('fileInfo').style.display = 'block';
+  el('fileInfo').innerHTML = `<strong>${file.name}</strong><br>${sizeMB} MB`;
+  el('mainCard').style.display = 'block';
+
+  loadFFmpeg().catch(err => {
+    el('engineBadge').textContent = 'error al cargar motor';
+    console.error(err);
+  });
+
+  readMetadataIntoForm(file, currentFileBuffer);
+  chapters = [];
+  renderChapters();
+}
+
+/* ---------------- Tabs ---------------- */
+
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    btn.classList.add('active');
+    el('tab-' + btn.dataset.tab).classList.add('active');
+  });
+});
+
+/* ---------------- Metadata reading (basic ID3v2 parser) ---------------- */
+
+function readMetadataIntoForm(file, buffer) {
+  const fields = ['title','artist','album','albumartist','genre','year','track','disc','composer','bpm','comment'];
+  fields.forEach(f => el('m_' + f).value = '');
+  coverFile = null;
+  removeCoverFlag = false;
+  el('coverPreview').style.backgroundImage = '';
+  el('coverPreview').textContent = 'Sin\nportada';
+
+  const ext = file.name.split('.').pop().toLowerCase();
+  try {
+    if (ext === 'mp3') {
+      const tags = parseID3v2(buffer);
+      if (tags.title) el('m_title').value = tags.title;
+      if (tags.artist) el('m_artist').value = tags.artist;
+      if (tags.album) el('m_album').value = tags.album;
+      if (tags.year) el('m_year').value = tags.year;
+      if (tags.genre) el('m_genre').value = tags.genre;
+      if (tags.comment) el('m_comment').value = tags.comment;
+      if (tags.picture) {
+        el('coverPreview').style.backgroundImage = `url(${tags.picture})`;
+        el('coverPreview').textContent = '';
+      }
+    }
+  } catch (e) {
+    console.warn('No se pudieron leer metadatos existentes:', e);
+  }
+}
+
+function parseID3v2(buffer) {
+  const view = new DataView(buffer);
+  const result = {};
+  if (view.byteLength < 10) return result;
+  const tag = String.fromCharCode(view.getUint8(0), view.getUint8(1), view.getUint8(2));
+  if (tag !== 'ID3') return result;
+
+  const size = ((view.getUint8(6) & 0x7f) << 21) | ((view.getUint8(7) & 0x7f) << 14) |
+               ((view.getUint8(8) & 0x7f) << 7) | (view.getUint8(9) & 0x7f);
+  let offset = 10;
+  const end = 10 + size;
+  const frameMap = { TIT2:'title', TPE1:'artist', TALB:'album', TYER:'year', TDRC:'year', TCON:'genre', COMM:'comment' };
+
+  while (offset < end && offset < view.byteLength - 10) {
+    const frameId = String.fromCharCode(view.getUint8(offset), view.getUint8(offset+1), view.getUint8(offset+2), view.getUint8(offset+3));
+    if (!/^[A-Z0-9]{4}$/.test(frameId)) break;
+    const frameSize = view.getUint32(offset + 4, false);
+    if (frameSize <= 0 || offset + 10 + frameSize > view.byteLength) break;
+    const frameStart = offset + 10;
+
+    if (frameId === 'APIC') {
+      let p = frameStart + 1;
+      while (view.getUint8(p) !== 0 && p < frameStart + frameSize) p++;
+      p++;
+      const pictureType = view.getUint8(p); p++;
+      let descEnd = p;
+      while (view.getUint8(descEnd) !== 0 && descEnd < frameStart + frameSize) descEnd++;
+      descEnd++;
+      const mimeBytes = new Uint8Array(buffer, frameStart + 1, p - (frameStart + 1) - 1);
+      const mime = new TextDecoder('latin1').decode(mimeBytes) || 'image/jpeg';
+      const picData = buffer.slice(descEnd, frameStart + frameSize);
+      const blob = new Blob([picData], { type: mime.includes('/') ? mime : 'image/jpeg' });
+      result.picture = URL.createObjectURL(blob);
+    } else if (frameMap[frameId]) {
+      const encoding = view.getUint8(frameStart);
+      const textBytes = new Uint8Array(buffer, frameStart + 1, frameSize - 1);
+      let text;
+      if (encoding === 1 || encoding === 2) {
+        text = new TextDecoder('utf-16').decode(textBytes);
+      } else {
+        text = new TextDecoder('latin1').decode(textBytes);
+      }
+      result[frameMap[frameId]] = text.replace(/\u0000/g, '').trim();
+    }
+    offset = frameStart + frameSize;
+  }
+  return result;
+}
+
+/* ---------------- Cover art ---------------- */
+
+el('coverInput').addEventListener('change', (e) => {
+  if (e.target.files.length) {
+    coverFile = e.target.files[0];
+    removeCoverFlag = false;
+    const url = URL.createObjectURL(coverFile);
+    el('coverPreview').style.backgroundImage = `url(${url})`;
+    el('coverPreview').textContent = '';
+  }
+});
+el('removeCoverBtn').addEventListener('click', () => {
+  coverFile = null;
+  removeCoverFlag = true;
+  el('coverInput').value = '';
+  el('coverPreview').style.backgroundImage = '';
+  el('coverPreview').textContent = 'Sin\nportada';
+});
+
+/* ---------------- Chapters ---------------- */
+
+function timeToSeconds(t) {
+  const parts = t.split(':').map(Number);
+  if (parts.some(isNaN)) return null;
+  if (parts.length === 3) return parts[0]*3600 + parts[1]*60 + parts[2];
+  if (parts.length === 2) return parts[0]*60 + parts[1];
+  if (parts.length === 1) return parts[0];
+  return null;
+}
+function secondsToTime(s) {
+  s = Math.round(s);
+  const h = String(Math.floor(s/3600)).padStart(2,'0');
+  const m = String(Math.floor((s%3600)/60)).padStart(2,'0');
+  const sec = String(s%60).padStart(2,'0');
+  return `${h}:${m}:${sec}`;
+}
+
+el('addChapterBtn').addEventListener('click', () => {
+  const t = timeToSeconds(el('chapTime').value.trim());
+  const title = el('chapTitle').value.trim();
+  if (t === null) { alert('Formato de tiempo invalido. Usa HH:MM:SS'); return; }
+  if (!title) { alert('Escribe un titulo para el capitulo'); return; }
+  chapters.push({ start: t, title });
+  chapters.sort((a,b) => a.start - b.start);
+  el('chapTitle').value = '';
+  renderChapters();
+});
+
+function renderChapters() {
+  const list = el('chaptersList');
+  list.innerHTML = '';
+  chapters.forEach((c, i) => {
+    const row = document.createElement('div');
+    row.className = 'chapter-row';
+    row.innerHTML = `<span class="time">${secondsToTime(c.start)}</span><span class="title">${c.title}</span><button data-i="${i}">✕</button>`;
+    row.querySelector('button').addEventListener('click', () => {
+      chapters.splice(i, 1);
+      renderChapters();
+    });
+    list.appendChild(row);
+  });
+}
+
+/* ---------------- ID3v2 writer (title/artist/album/year/genre/comment/APIC/CHAP/CTOC) ---------------- */
+
+function encodeSynchsafe(n) {
+  return [
+    (n >> 21) & 0x7f,
+    (n >> 14) & 0x7f,
+    (n >> 7) & 0x7f,
+    n & 0x7f
+  ];
+}
+
+function textFrame(id, text) {
+  const bodyBytes = new TextEncoder().encode(text);
+  const body = new Uint8Array(bodyBytes.length + 1);
+  body[0] = 3;
+  body.set(bodyBytes, 1);
+  return buildFrame(id, body);
+}
+
+function commentFrame(text) {
+  const langBytes = new TextEncoder().encode('eng');
+  const descBytes = new Uint8Array([0]);
+  const textBytes = new TextEncoder().encode(text);
+  const body = new Uint8Array(1 + 3 + 1 + textBytes.length);
+  body[0] = 3;
+  body.set(langBytes, 1);
+  body.set(descBytes, 4);
+  body.set(textBytes, 5);
+  return buildFrame('COMM', body);
+}
+
+function apicFrame(mime, data) {
+  const mimeBytes = new TextEncoder().encode(mime);
+  const body = new Uint8Array(1 + mimeBytes.length + 1 + 1 + 1 + data.length);
+  let o = 0;
+  body[o++] = 3;
+  body.set(mimeBytes, o); o += mimeBytes.length;
+  body[o++] = 0;
+  body[o++] = 3;
+  body[o++] = 0;
+  body.set(new Uint8Array(data), o);
+  return buildFrame('APIC', body);
+}
+
+function chapFrame(elementId, startMs, endMs, subTitleFrame) {
+  const idBytes = new TextEncoder().encode(elementId + '\0');
+  const header = new Uint8Array(idBytes.length + 16);
+  header.set(idBytes, 0);
+  const dv = new DataView(header.buffer);
+  dv.setUint32(idBytes.length, startMs, false);
+  dv.setUint32(idBytes.length + 4, endMs, false);
+  dv.setUint32(idBytes.length + 8, 0xFFFFFFFF, false);
+  dv.setUint32(idBytes.length + 12, 0xFFFFFFFF, false);
+  const body = new Uint8Array(header.length + subTitleFrame.length);
+  body.set(header, 0);
+  body.set(subTitleFrame, header.length);
+  return buildFrame('CHAP', body);
+}
+
+function ctocFrame(elementId, childIds) {
+  const idBytes = new TextEncoder().encode(elementId + '\0');
+  const flags = new Uint8Array([0x03]);
+  const entryCount = new Uint8Array([childIds.length]);
+  let childBytes = [];
+  childIds.forEach(cid => {
+    childBytes.push(...new TextEncoder().encode(cid + '\0'));
+  });
+  const body = new Uint8Array(idBytes.length + flags.length + entryCount.length + childBytes.length);
+  let o = 0;
+  body.set(idBytes, o); o += idBytes.length;
+  body.set(flags, o); o += flags.length;
+  body.set(entryCount, o); o += entryCount.length;
+  body.set(new Uint8Array(childBytes), o);
+  return buildFrame('CTOC', body);
+}
+
+function buildFrame(id, bodyBytes) {
+  const idBytes = new TextEncoder().encode(id);
+  const frame = new Uint8Array(10 + bodyBytes.length);
+  frame.set(idBytes, 0);
+  const dv = new DataView(frame.buffer);
+  dv.setUint32(4, bodyBytes.length, false);
+  dv.setUint16(8, 0, false);
+  frame.set(bodyBytes, 10);
+  return frame;
+}
+
+async function buildID3Tag(meta, coverBlob, chaptersList, totalDuration) {
+  const frames = [];
+  if (meta.title) frames.push(textFrame('TIT2', meta.title));
+  if (meta.artist) frames.push(textFrame('TPE1', meta.artist));
+  if (meta.album) frames.push(textFrame('TALB', meta.album));
+  if (meta.albumartist) frames.push(textFrame('TPE2', meta.albumartist));
+  if (meta.genre) frames.push(textFrame('TCON', meta.genre));
+  if (meta.year) frames.push(textFrame('TYER', meta.year));
+  if (meta.track) frames.push(textFrame('TRCK', meta.track));
+  if (meta.disc) frames.push(textFrame('TPOS', meta.disc));
+  if (meta.composer) frames.push(textFrame('TCOM', meta.composer));
+  if (meta.bpm) frames.push(textFrame('TBPM', meta.bpm));
+  if (meta.comment) frames.push(commentFrame(meta.comment));
+
+  if (coverBlob) {
+    const arrBuf = await coverBlob.arrayBuffer();
+    const mime = coverBlob.type || 'image/jpeg';
+    frames.push(apicFrame(mime, arrBuf));
+  }
+
+  if (chaptersList && chaptersList.length) {
+    const sorted = [...chaptersList].sort((a,b) => a.start - b.start);
+    const childIds = [];
+    sorted.forEach((c, i) => {
+      const startMs = Math.round(c.start * 1000);
+      const endMs = i + 1 < sorted.length ? Math.round(sorted[i+1].start * 1000) : Math.round(totalDuration * 1000);
+      const elementId = 'chp' + i;
+      childIds.push(elementId);
+      const subTitle = textFrame('TIT2', c.title);
+      frames.push(chapFrame(elementId, startMs, endMs, subTitle));
+    });
+    frames.push(ctocFrame('toc', childIds));
+  }
+
+  const totalFrameSize = frames.reduce((sum, f) => sum + f.length, 0);
+  const header = new Uint8Array(10);
+  header.set(new TextEncoder().encode('ID3'), 0);
+  header[3] = 3; header[4] = 0; header[5] = 0;
+  header.set(encodeSynchsafe(totalFrameSize), 6);
+
+  const tag = new Uint8Array(10 + totalFrameSize);
+  tag.set(header, 0);
+  let offset = 10;
+  frames.forEach(f => { tag.set(f, offset); offset += f.length; });
+  return tag;
+}
+
+function injectID3Tag(mp3ArrayBuffer, id3Tag) {
+  let audioStart = 0;
+  const view = new DataView(mp3ArrayBuffer);
+  if (view.byteLength >= 10 &&
+      view.getUint8(0) === 0x49 && view.getUint8(1) === 0x44 && view.getUint8(2) === 0x33) {
+    const size = ((view.getUint8(6) & 0x7f) << 21) | ((view.getUint8(7) & 0x7f) << 14) |
+                 ((view.getUint8(8) & 0x7f) << 7) | (view.getUint8(9) & 0x7f);
+    audioStart = 10 + size;
+  }
+  const audioData = mp3ArrayBuffer.slice(audioStart);
+  const result = new Uint8Array(id3Tag.length + audioData.byteLength);
+  result.set(id3Tag, 0);
+  result.set(new Uint8Array(audioData), id3Tag.length);
+  return result;
+}
+
+/* ---------------- Main processing pipeline ---------------- */
+
+el('processBtn').addEventListener('click', processFile);
+
+async function processFile() {
+  if (!currentFile) { alert('Selecciona primero un archivo de audio.'); return; }
+
+  const btn = el('processBtn');
+  btn.disabled = true;
+  el('progressWrap').style.display = 'block';
+  el('resultBox').style.display = 'none';
+  setProgress(0, 'Cargando motor de conversion...');
+
+  try {
+    await loadFFmpeg();
+
+    const format = el('formatSelect').value;
+    const bitrate = el('bitrateSelect').value;
+    const sampleRate = el('sampleRateSelect').value;
+    const channels = el('channelsSelect').value;
+
+    const inputName = 'input' + getExt(currentFile.name);
+    const outputName = 'output.' + format;
+
+    setProgress(5, 'Escribiendo archivo en memoria virtual...');
+    await ffmpeg.writeFile(inputName, await fetchFile(currentFile));
+
+    ffmpeg.on('progress', ({ progress }) => {
+      const pct = Math.min(70, Math.round(progress * 70));
+      setProgress(pct, `Convirtiendo audio... ${Math.round(progress*100)}%`);
+    });
+
+    const args = ['-i', inputName, '-vn'];
+    const codecMap = { mp3: 'libmp3lame', wav: 'pcm_s16le', flac: 'flac', m4a: 'aac', ogg: 'libvorbis' };
+    args.push('-c:a', codecMap[format]);
+    if (bitrate && format !== 'wav' && format !== 'flac') args.push('-b:a', bitrate);
+    if (sampleRate) args.push('-ar', sampleRate);
+    if (channels) args.push('-ac', channels);
+    args.push(outputName);
+
+    setProgress(10, 'Convirtiendo audio con FFmpeg (WebAssembly)...');
+    await ffmpeg.exec(args);
+
+    setProgress(75, 'Leyendo resultado...');
+    const data = await ffmpeg.readFile(outputName);
+    let finalBytes = data.buffer ? data.buffer : data;
+
+    const meta = {
+      title: el('m_title').value.trim(),
+      artist: el('m_artist').value.trim(),
+      album: el('m_album').value.trim(),
+      albumartist: el('m_albumartist').value.trim(),
+      genre: el('m_genre').value.trim(),
+      year: el('m_year').value.trim(),
+      track: el('m_track').value.trim(),
+      disc: el('m_disc').value.trim(),
+      composer: el('m_composer').value.trim(),
+      bpm: el('m_bpm').value.trim(),
+      comment: el('m_comment').value.trim(),
+    };
+
+    if (format === 'mp3') {
+      setProgress(85, 'Escribiendo metadatos y capitulos (ID3v2)...');
+      const coverBlob = removeCoverFlag ? null : coverFile;
+      const totalDur = await estimateDuration(data);
+      const id3Tag = await buildID3Tag(meta, coverBlob, chapters, totalDur || duration || 0);
+      finalBytes = injectID3Tag(data.buffer ? data.buffer : new Uint8Array(data).buffer, id3Tag);
+    } else {
+      setProgress(90, 'Nota: metadatos avanzados solo se aplican a MP3 en esta version web.');
+    }
+
+    setProgress(100, 'Completado');
+
+    const blob = new Blob([finalBytes], { type: `audio/${format}` });
+    const url = URL.createObjectURL(blob);
+    const baseName = currentFile.name.replace(/\.[^.]+$/, '');
+    el('downloadLink').href = url;
+    el('downloadLink').download = `${baseName}_convertido.${format}`;
+    el('resultText').textContent = `Archivo listo: ${baseName}_convertido.${format} (${(blob.size/1024/1024).toFixed(2)} MB)`;
+    el('resultBox').style.display = 'block';
+
+    await ffmpeg.deleteFile(inputName);
+    await ffmpeg.deleteFile(outputName);
+
+  } catch (err) {
+    console.error(err);
+    setProgress(0, 'Error: ' + err.message);
+    alert('Ocurrio un error durante el procesamiento: ' + err.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function getExt(filename) {
+  const m = filename.match(/\.[^.]+$/);
+  return m ? m[0] : '.dat';
+}
+
+async function estimateDuration(data) {
+  try {
+    const blob = new Blob([data.buffer ? data.buffer : data]);
+    const url = URL.createObjectURL(blob);
+    return await new Promise((resolve) => {
+      const audioEl = new Audio();
+      audioEl.src = url;
+      audioEl.addEventListener('loadedmetadata', () => {
+        resolve(audioEl.duration || 0);
+        URL.revokeObjectURL(url);
+      });
+      audioEl.addEventListener('error', () => resolve(0));
+    });
+  } catch { return 0; }
+}
+
+function setProgress(pct, text) {
+  el('progressFill').style.width = pct + '%';
+  el('statusText').textContent = text;
+}
+</script>
+
+</body>
+</html>
