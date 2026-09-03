@@ -388,6 +388,17 @@
    Audio Studio Web
    Conversion (ffmpeg.wasm) + Metadatos (parser/writer propios) +
    Portada + Capitulos, 100% client-side. + Registro PWA.
+
+   NOTA IMPORTANTE SOBRE EL ERROR "Failed to construct 'Worker'":
+   La libreria @ffmpeg/ffmpeg 0.12.x crea internamente un Worker cuyo
+   script se sirve desde el CDN (unpkg.com). Los navegadores prohiben
+   instanciar un Worker cuyo script provenga de un origen distinto al
+   de la pagina que lo ejecuta (aqui, tu dominio de GitHub Pages). La
+   solucion oficial es descargar coreURL, wasmURL Y workerURL como
+   Blob URLs del mismo origen, y pasar ademas ese workerURL tambien
+   como "classWorkerURL" en ffmpeg.load(). Se usa el build ESM de
+   @ffmpeg/core porque expone "ffmpeg-core.worker.js" con nombre fijo,
+   evitando depender de nombres de chunk que cambian entre versiones.
    ============================================================ */
 
 const { FFmpeg } = FFmpegWASM;
@@ -447,17 +458,36 @@ window.addEventListener('appinstalled', () => {
   }
 })();
 
-/* ---------------- FFmpeg loading ---------------- */
+/* ---------------- FFmpeg loading (CORREGIDO: workerURL + classWorkerURL) ---------------- */
 
 async function loadFFmpeg() {
   if (ffmpegLoaded) return;
   el('engineBadge').textContent = 'cargando motor...';
   ffmpeg = new FFmpeg();
-  const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+
+  // Se usa el build ESM de @ffmpeg/core, que expone ffmpeg-core.worker.js
+  // con nombre de archivo ESTABLE (a diferencia del chunk numerado que
+  // genera @ffmpeg/ffmpeg, ej. "814.ffmpeg.js", cuyo nombre puede cambiar
+  // entre versiones/builds). Descargamos los 3 archivos como Blob URLs
+  // del mismo origen de la pagina para evitar el bloqueo de CORS al
+  // instanciar el Worker interno.
+  const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm';
+
+  ffmpeg.on('log', ({ message }) => console.log('[ffmpeg]', message));
+
+  const [coreURL, wasmURL, workerURL] = await Promise.all([
+    toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
+    toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+    toBlobURL(`${baseURL}/ffmpeg-core.worker.js`, 'text/javascript'),
+  ]);
+
   await ffmpeg.load({
-    coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-    wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+    coreURL,
+    wasmURL,
+    workerURL,
+    classWorkerURL: workerURL,
   });
+
   ffmpegLoaded = true;
   el('engineBadge').textContent = 'motor listo';
 }
